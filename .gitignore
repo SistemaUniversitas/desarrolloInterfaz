@@ -1,0 +1,9 @@
+# Archivos cache de Python
+__pycache__/
+
+#Entorno virtual
+venv/
+
+# Archivos antiguos de prueba
+app_test.py
+app_2007.py
