@@ -53,7 +53,7 @@ if not JDBC_DRIVER_PATH.exists():
 
 JDBC_NUM_PARTITIONS = 4
 
-CACHE_DIR  = Path("Cache")
+CACHE_DIR  = DASHBOARD_DIR / "Cache"
 CACHE_FILE = CACHE_DIR / "SaberPro_Unificado_cache.parquet"
 
 # Columnas objetivo (snake_case, como las deja el ETL)
@@ -332,10 +332,18 @@ def load_or_build(force=False) -> pd.DataFrame:
     if not force and CACHE_FILE.exists():
         print(f"  Cargando cache unificado desde {CACHE_FILE}…", end=" ", flush=True)
         t0 = time.time()
-        df = pd.read_parquet(CACHE_FILE)
-        print(f"OK ({time.time()-t0:.1f}s) · {len(df):,} filas")
-        return df
-    return build_cache()
+        try:
+            df = pd.read_parquet(CACHE_FILE)
+            print(f"OK ({time.time()-t0:.1f}s) · {len(df):,} filas")
+            return df
+        except Exception as e:
+            print(f"ERROR al leer cache: {e} — intentando reconstruir…")
+    try:
+        return build_cache()
+    except Exception as e:
+        print(f"  ❌ No se pudo construir el cache: {e}")
+        print("  ⚠️  El dashboard cargará sin datos. Verifica la conexión a Postgres.")
+        return pd.DataFrame(columns=COLS_READ + ["anio", "edad"])
 
 # ─────────────────────────────────────────────────────────────
 # HELPERS DE FIGURAS
