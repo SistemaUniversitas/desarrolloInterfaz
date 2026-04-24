@@ -373,14 +373,16 @@ def bar_h_fig(index, values, color=ACCENT1):
         yaxis=dict(gridcolor="rgba(0,0,0,0)"))
     return fig
 
-def bar_v_fig(index, values, color=ACCENT2, xlab="", ylab="", tickangle=0):
+def bar_v_fig(index, values, color=ACCENT2, xlab="", ylab="",
+              tickangle=0, bargap=None):
     if not len(values): return empty_fig()
     fig = go.Figure(go.Bar(
         x=[str(l) for l in index], y=list(values),
         marker=dict(color=color),
         hovertemplate="%{x}<br>%{y:,}<extra></extra>",
     ))
-    fig.update_layout(**LAYOUT_BASE,
+    extra = dict(bargap=bargap) if bargap is not None else {}
+    fig.update_layout(**LAYOUT_BASE, **extra,
         xaxis=dict(gridcolor="rgba(0,0,0,0)", title=xlab, tickangle=tickangle),
         yaxis=dict(gridcolor=BORDER, zerolinecolor=BORDER, title=ylab))
     return fig
@@ -797,22 +799,48 @@ layout = html.Div(style={
         ),
         card([sublabel(f"Distribución de edad (calculada al año de la prueba)"),
               graph("unif-fig-edad", "320px")]),
-        card([sublabel("Top 25 nacionalidades extranjeras"),
-              graph("unif-fig-extranjeros", "380px")]),
+        card([
+            sublabel("Nacionalidad de los estudiantes"),
+            html.Div([
+                html.Div(id="unif-kpi-colombianos",
+                         style={"flex": "1", "minWidth": "180px"}),
+                html.Div(id="unif-kpi-extranjeros",
+                         style={"flex": "1", "minWidth": "180px"}),
+            ], style={"display": "flex", "gap": "12px", "marginBottom": "20px"}),
+            sublabel("Top 25 nacionalidades extranjeras"),
+            graph("unif-fig-extranjeros", "800px"),
+        ]),
     ]),
 
-    # ── 2. Ubicación ──
+    # ── 2. Ubicación (top 10) ──
     card([
-        section_title("Ubicación del estudiante"),
+        section_title("Ubicación del estudiante · Top 10"),
+        row(
+            col([sublabel("Top 10 departamentos de residencia"),
+                 graph("unif-fig-top10-depto-reside", "460px")]),
+            col([sublabel("Top 10 municipios de residencia"),
+                 graph("unif-fig-top10-mcpio-reside", "460px")]),
+        ),
+        row(
+            col([sublabel("Top 10 departamentos de presentación"),
+                 graph("unif-fig-top10-depto-present", "460px")]),
+            col([sublabel("Top 10 municipios de presentación"),
+                 graph("unif-fig-top10-mcpio-present", "460px")]),
+        ),
+    ]),
+
+    # ── 2.b Ubicación (completa) ──
+    card([
+        section_title("Ubicación del estudiante · Todos los departamentos y municipios"),
         row(
             col([sublabel("Departamento de residencia"),
-                 graph("unif-fig-mapa-depto-reside", "500px")]),
+                 graph("unif-fig-mapa-depto-reside", "900px")]),
             col([sublabel("Municipio de residencia (top)"),
                  graph("unif-fig-mapa-mcpio-reside", "500px")]),
         ),
         row(
             col([sublabel("Departamento de presentación"),
-                 graph("unif-fig-mapa-depto-present", "500px")]),
+                 graph("unif-fig-mapa-depto-present", "900px")]),
             col([sublabel("Municipio de presentación (top)"),
                  graph("unif-fig-mapa-mcpio-present", "500px")]),
         ),
@@ -857,7 +885,7 @@ layout = html.Div(style={
         ),
         row(
             col([sublabel("Estrato de vivienda"),
-                 graph("unif-fig-estrato", "300px")]),
+                 graph("unif-fig-estrato", "420px")]),
             col([sublabel("Tiene internet"),
                  graph("unif-fig-internet", "300px")]),
             col([sublabel("Tiene computador"),
@@ -882,7 +910,9 @@ layout = html.Div(style={
         row(
             col([sublabel("Carácter académico de la IES"),
                  graph("unif-fig-caracter", "320px")]),
-            col([sublabel("Origen (oficial / privada)"),
+            col([sublabel("Tipo de institución (pública / privada / especial)"),
+                 graph("unif-fig-origen-tipo", "320px")]),
+            col([sublabel("Origen (valores detallados)"),
                  graph("unif-fig-origen", "320px")]),
             col([sublabel("Nivel del programa"),
                  graph("unif-fig-nivel-prgm", "320px")]),
@@ -891,10 +921,10 @@ layout = html.Div(style={
             col([sublabel("Método del programa"),
                  graph("unif-fig-metodo", "300px")]),
             col([sublabel("Grupo de referencia (top 20)"),
-                 graph("unif-fig-grupo-ref", "300px")]),
+                 graph("unif-fig-grupo-ref", "650px")]),
         ),
         card([sublabel("Departamento donde se ofrece el programa"),
-              graph("unif-fig-mapa-prgm-depto", "480px")]),
+              graph("unif-fig-mapa-prgm-depto", "900px")]),
         card([sublabel("Top 30 instituciones"),
               graph("unif-fig-top-inst", "560px")]),
         card([sublabel("Top 30 programas académicos"),
@@ -1007,7 +1037,10 @@ _FIG_OUTPUTS = [
     # identificación
     "unif-fig-periodo", "unif-fig-genero", "unif-fig-nac-resumen",
     "unif-fig-edad", "unif-fig-extranjeros",
-    # ubicación
+    # ubicación top 10
+    "unif-fig-top10-depto-reside", "unif-fig-top10-mcpio-reside",
+    "unif-fig-top10-depto-present", "unif-fig-top10-mcpio-present",
+    # ubicación completa
     "unif-fig-mapa-depto-reside", "unif-fig-mapa-mcpio-reside",
     "unif-fig-mapa-depto-present", "unif-fig-mapa-mcpio-present",
     "unif-fig-area-reside",
@@ -1022,7 +1055,7 @@ _FIG_OUTPUTS = [
     # socioeconómico
     "unif-fig-inse", "unif-fig-nse",
     # institución
-    "unif-fig-caracter", "unif-fig-origen", "unif-fig-nivel-prgm",
+    "unif-fig-caracter", "unif-fig-origen-tipo", "unif-fig-origen", "unif-fig-nivel-prgm",
     "unif-fig-metodo", "unif-fig-grupo-ref",
     "unif-fig-mapa-prgm-depto",
     "unif-fig-top-inst", "unif-fig-top-prgm", "unif-fig-nucleo",
@@ -1042,6 +1075,8 @@ _FIG_OUTPUTS = [
     *[Output(fid, "figure") for fid in _FIG_OUTPUTS],
     Output("unif-kpi-total", "children"),
     Output("unif-filter-summary", "children"),
+    Output("unif-kpi-colombianos", "children"),
+    Output("unif-kpi-extranjeros", "children"),
     Input("unif-f-year",    "value"),
     Input("unif-f-periodo", "value"),
     Input("unif-f-genero",  "value"),
@@ -1067,7 +1102,7 @@ def update_all(anio, periodo, genero, estrato, depto, mcpio):
     if total == 0:
         empty = empty_fig()
         empties = [empty] * len(_FIG_OUTPUTS)
-        return (*empties, "0", resumen + " · sin registros")
+        return (*empties, "0", resumen + " · sin registros", None, None)
 
     def vc(col, top=None, sort_index=False):
         if col not in d.columns: return pd.Series(dtype=int)
@@ -1106,6 +1141,15 @@ def update_all(anio, periodo, genero, estrato, depto, mcpio):
     depto_p_vc  = vc("estu_depto_presentacion")
     mcpio_p_vc  = vc("estu_mcpio_presentacion", top=60)
     area_vc     = vc("estu_areareside")
+
+    def _top10_bar(value_counts):
+        top = value_counts.head(10).sort_values(ascending=True)
+        return bar_h_fig(top.index, top.values, color=ACCENT1)
+
+    fig_top10_depto_r = _top10_bar(depto_r_vc)
+    fig_top10_mcpio_r = _top10_bar(mcpio_r_vc)
+    fig_top10_depto_p = _top10_bar(depto_p_vc)
+    fig_top10_mcpio_p = _top10_bar(mcpio_p_vc)
 
     fig_mapa_depto_r = choropleth_colombia(
         {str(k): int(v) for k, v in depto_r_vc.items()})
@@ -1146,7 +1190,9 @@ def update_all(anio, periodo, genero, estrato, depto, mcpio):
     fig_ocu_p = bar_h_fig(ocu_p_vc.index, ocu_p_vc.values, color=ACCENT1)
     fig_ocu_m = bar_h_fig(ocu_m_vc.index, ocu_m_vc.values, color=ACCENT3)
     fig_est   = bar_v_fig(est_vc.index, est_vc.values,
-                          color=ACCENT2, xlab="Estrato", ylab="Cantidad")
+                          color=ACCENT2, xlab="Estrato", ylab="Cantidad",
+                          bargap=0.08, tickangle=-45)
+    fig_est.update_layout(margin=dict(t=40, b=110, l=40, r=40))
     fig_int   = pie_fig(int_vc.values,
                         [{"True": "Sí", "False": "No"}.get(str(x), str(x))
                          for x in int_vc.index])
@@ -1168,6 +1214,23 @@ def update_all(anio, periodo, genero, estrato, depto, mcpio):
     metodo_vc  = vc("estu_metodo_prgm")
     grupo_vc   = vc("gruporeferencia", top=20).sort_values(ascending=True)
     depto_pr_vc= vc("estu_prgm_departamento")
+
+    _PRIVADAS = {"NO OFICIAL - FUNDACIÓN", "NO OFICIAL - CORPORACIÓN",
+                 "NO OFICIAL - FUNDACION", "NO OFICIAL - CORPORACION"}
+    _PUBLICAS = {"OFICIAL DEPARTAMENTAL", "OFICIAL MUNICIPAL", "OFICIAL NACIONAL"}
+    _ESPECIAL = {"REGIMEN ESPECIAL"}
+    if "inst_origen" in d.columns:
+        _orig = d["inst_origen"].astype(str).str.upper().str.strip()
+        _tipo = {
+            "Pública":          int(_orig.isin(_PUBLICAS).sum()),
+            "Privada":          int(_orig.isin(_PRIVADAS).sum()),
+            "Régimen especial": int(_orig.isin(_ESPECIAL).sum()),
+        }
+        _tipo = {k: v for k, v in _tipo.items() if v > 0}
+    else:
+        _tipo = {}
+    fig_org_tipo = pie_fig(list(_tipo.values()), list(_tipo.keys())) \
+                   if _tipo else empty_fig()
 
     fig_car   = pie_fig(car_vc.values, car_vc.index.astype(str))
     fig_org   = pie_fig(org_vc.values, org_vc.index.astype(str))
@@ -1224,6 +1287,8 @@ def update_all(anio, periodo, genero, estrato, depto, mcpio):
 
     figs = [
         fig_periodo, fig_genero, fig_nac, fig_edad, fig_ext,
+        fig_top10_depto_r, fig_top10_mcpio_r,
+        fig_top10_depto_p, fig_top10_mcpio_p,
         fig_mapa_depto_r, fig_mapa_mcpio_r, fig_mapa_depto_p,
         fig_mapa_mcpio_p, fig_area,
         fig_sankey, fig_flow,
@@ -1231,7 +1296,7 @@ def update_all(anio, periodo, genero, estrato, depto, mcpio):
         fig_edu_p, fig_edu_m, fig_ocu_p, fig_ocu_m,
         fig_est, fig_int, fig_com,
         fig_inse, fig_nse,
-        fig_car, fig_org, fig_nivel, fig_metodo, fig_grupo,
+        fig_car, fig_org_tipo, fig_org, fig_nivel, fig_metodo, fig_grupo,
         fig_mapa_pr, fig_inst, fig_prgm, fig_nucleo,
         fig_p_raz, fig_p_lec, fig_p_ciu, fig_p_ing, fig_p_esc,
         fig_p_glo, fig_perc,
@@ -1239,4 +1304,7 @@ def update_all(anio, periodo, genero, estrato, depto, mcpio):
         fig_pago_tot, fig_pago_hm, fig_est_pago,
     ]
     assert len(figs) == len(_FIG_OUTPUTS), (len(figs), len(_FIG_OUTPUTS))
-    return (*figs, f"{total:,}", resumen + f" · {total:,} registros")
+    kpi_col = kpi_box("Estudiantes colombianos", f"{col_count:,}", ACCENT2)
+    kpi_ext = kpi_box("Estudiantes extranjeros",  f"{ext_count:,}", ACCENT3)
+    return (*figs, f"{total:,}", resumen + f" · {total:,} registros",
+            kpi_col, kpi_ext)
