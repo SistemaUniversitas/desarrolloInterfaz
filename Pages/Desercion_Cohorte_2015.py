@@ -47,7 +47,7 @@ dash.register_page(__name__, path="/desercion2015", name="Deserción · Cohorte 
 BASE_PROYECT_DIR = Path(__file__).resolve().parents[2]
 
 CSV_SABER11   = BASE_PROYECT_DIR / "Datasets" / "Data_ICFES" / "Saber_11" / "Unificados" / "Limpios" / "Saber_11_2015_filtrado.csv"
-CSV_DESERTORES = BASE_PROYECT_DIR / "Datasets" / "Data_ICFES" / "ICFES_Unificado" / "desertores_detalle.csv"
+CSV_DESERTORES = BASE_PROYECT_DIR / "Datasets" / "Data_ICFES" / "ICFES_Unificado" / "desercion" / "desertores_detalle.csv"
 
 CACHE_DIR  = Path("Cache")
 CACHE_FILE = CACHE_DIR / "Desercion_Cohorte_2015_cache.pkl"
