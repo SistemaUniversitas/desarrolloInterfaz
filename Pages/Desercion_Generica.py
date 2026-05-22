@@ -13,8 +13,15 @@ Lógica:
   - Desertores     = Total − Continuaron (sin llave → no llegaron a Saber Pro)
   - Tasa deserción = (Desertores / Total) × 100
 
+Radio de incertidumbre:
+  - Estándar: 5 años (10 semestres) entre SB11 y SB Pro
+  - Para cada cohorte se cruzan las tablas saberpro_{2015..2023} vía llaves
+    para obtener en qué periodo presentaron SB Pro los que sí continuaron
+  - Se muestra la distribución por año real y la desviación en semestres
+    (negativa = antes del estándar, positiva = después del estándar)
+
 Cache en disco (Cache/):
-  - desercion_generica_meta.pkl         → KPIs por año {año: {...}}
+  - desercion_generica_meta.pkl         → KPIs + periodo_dist por año {año: {...}}
   - desercion_generica_desertores.parquet → filas de desertores con anio_cohorte
 
 Para forzar reprocesamiento:
@@ -50,7 +57,10 @@ PG_PASSWORD = "postgres"
 PG_SCHEMA   = "public"
 
 # Cohortes Saber 11 analizadas (se comparan con SB Pro 2015–2023 vía llaves)
-SB11_YEARS = list(range(2010, 2019))  # 2010 a 2018
+SB11_YEARS        = list(range(2010, 2019))  # 2010 a 2018
+SBPRO_YEARS       = list(range(2015, 2024))  # 2015 a 2023
+STANDARD_YEARS    = 5                        # tiempo estándar SB11 → SB Pro en años
+STANDARD_SEMESTERS = STANDARD_YEARS * 2     # = 10 semestres
 
 DASHBOARD_DIR = Path(__file__).resolve().parents[1]
 CACHE_DIR     = DASHBOARD_DIR / "Cache"
@@ -196,6 +206,234 @@ def pie_fig(index, values):
     return fig
 
 # ─────────────────────────────────────────────────────────────
+# HELPERS DE INCERTIDUMBRE — tiempo entre SB11 y SB Pro
+# ─────────────────────────────────────────────────────────────
+
+def _parse_periodo(p, sb11_year: int):
+    """Parsea un valor de periodo SB Pro (ej. '20161', '20162', 20161) y devuelve
+    (sbpro_year, sbpro_sem, delta_sems) donde delta_sems es el número de semestres
+    transcurridos desde el año de SB11 hasta ese periodo SB Pro.
+    Devuelve (None, None, None) si el parse falla."""
+    try:
+        s = str(p).strip().split(".")[0]  # maneja '20161.0' → '20161'
+        if len(s) >= 5:
+            year = int(s[:4])
+            sem  = int(s[4:5])
+        elif len(s) == 4:
+            year = int(s)
+            sem  = 1  # periodo sin semestre → asumir semestre 1
+        else:
+            return None, None, None
+        if year < 2000 or year > 2030 or sem not in (1, 2):
+            return None, None, None
+        delta_sems = (year - sb11_year) * 2 + (sem - 1)
+        return year, sem, delta_sems
+    except Exception:
+        return None, None, None
+
+
+def _incert_stats(periodo_dist: dict, sb11_year: int):
+    """Calcula estadísticas de incertidumbre a partir del dict {periodo: count}.
+    Devuelve un dict con conteos y desviaciones, o None si no hay datos."""
+    if not periodo_dist:
+        return None
+
+    total = 0
+    early_count = 0;  ontime_count = 0;  late_count = 0
+    w_dev_sum   = 0.0
+    early_dev_sum = 0.0;  late_dev_sum = 0.0
+
+    for p, cnt in periodo_dist.items():
+        year, sem, delta_sems = _parse_periodo(p, sb11_year)
+        if year is None:
+            continue
+        dev        = delta_sems - STANDARD_SEMESTERS   # desviación en semestres
+        delta_yrs  = year - sb11_year
+        total     += cnt
+        w_dev_sum += dev * cnt
+
+        if delta_yrs < STANDARD_YEARS:
+            early_count   += cnt
+            early_dev_sum += dev * cnt
+        elif delta_yrs == STANDARD_YEARS:
+            ontime_count  += cnt
+        else:
+            late_count    += cnt
+            late_dev_sum  += dev * cnt
+
+    if total == 0:
+        return None
+
+    avg_dev       = w_dev_sum / total
+    early_avg_dev = early_dev_sum / early_count if early_count else 0.0
+    late_avg_dev  = late_dev_sum  / late_count  if late_count  else 0.0
+
+    return {
+        "total_matched": total,
+        "early_count":   early_count,
+        "early_pct":     early_count / total * 100,
+        "early_avg_dev": early_avg_dev,   # en semestres (negativo)
+        "ontime_count":  ontime_count,
+        "ontime_pct":    ontime_count / total * 100,
+        "late_count":    late_count,
+        "late_pct":      late_count / total * 100,
+        "late_avg_dev":  late_avg_dev,    # en semestres (positivo)
+        "avg_dev":       avg_dev,         # desviación global en semestres
+    }
+
+
+def _fmt_sems(d_sems: float, short=False) -> str:
+    """Formatea semestres de desviación como texto legible.
+    short=True  → '+3 sem (+1a 1sem)'
+    short=False → '1 año y 1 semestre después del estándar'"""
+    if abs(d_sems) < 0.1:
+        return "en el estándar" if short else "en el estándar (5 años exactos)"
+    s       = abs(d_sems)
+    years   = int(s // 2)
+    sems    = int(round(s % 2))
+    sign    = "+" if d_sems > 0 else "−"
+    if short:
+        parts = []
+        if years: parts.append(f"{years}a")
+        if sems:  parts.append("1sem")
+        return f"{sign}{int(s)} sem ({sign}{' '.join(parts) or '½a'})"
+    else:
+        parts = []
+        if years: parts.append(f"{years} año{'s' if years > 1 else ''}")
+        if sems:  parts.append(f"{sems} semestre")
+        suffix = "después del estándar" if d_sems > 0 else "antes del estándar"
+        return f"{' y '.join(parts) or '< 1 semestre'} {suffix}"
+
+
+def incert_anos_fig(periodo_dist: dict, sb11_year: int):
+    """Barras por año real de presentación SB Pro, coloreadas según delta vs estándar."""
+    if not periodo_dist:
+        return empty_fig("Sin datos de trayectoria para esta cohorte")
+
+    year_counts: dict = {}
+    for p, cnt in periodo_dist.items():
+        year, _, _ = _parse_periodo(p, sb11_year)
+        if year is not None:
+            year_counts[year] = year_counts.get(year, 0) + cnt
+
+    if not year_counts:
+        return empty_fig("Sin datos de trayectoria para esta cohorte")
+
+    expected  = sb11_year + STANDARD_YEARS
+    years     = sorted(year_counts.keys())
+    counts    = [year_counts[y] for y in years]
+
+    def _color(y):
+        d = y - expected
+        if d < 0:  return ACCENT5          # antes del estándar: naranja
+        if d == 0: return ACCENT2          # en el estándar: verde
+        if d <= 2: return ACCENT3          # hasta 2 años tarde: rojo
+        return "#C23B22"                   # >2 años tarde: rojo oscuro
+
+    def _xlabel(y):
+        d = y - expected
+        if d == 0: return f"{y}<br>✓ estándar"
+        if d < 0:  return f"{y}<br>{d} años"
+        return f"{y}<br>+{d} año{'s' if abs(d) > 1 else ''}"
+
+    x_idx    = list(range(len(years)))
+    x_labels = [_xlabel(y) for y in years]
+    colors   = [_color(y)  for y in years]
+
+    fig = go.Figure(go.Bar(
+        x=x_idx, y=counts,
+        marker=dict(color=colors, line=dict(color="rgba(0,0,0,0)")),
+        text=[f"{c:,}" for c in counts],
+        textposition="outside",
+        textfont=dict(size=10, color=TEXT_MUTED),
+        customdata=[f"SB Pro {y} (delta: {y - expected:+d} años)" for y in years],
+        hovertemplate="%{customdata}<br>Estudiantes: %{y:,}<extra></extra>",
+    ))
+
+    if expected in years:
+        fig.add_vline(x=years.index(expected),
+                      line=dict(color=ACCENT2, dash="dot", width=1.5))
+
+    fig.update_layout(
+        **LAYOUT_BASE,
+        xaxis=dict(
+            title="Año de presentación Saber Pro",
+            tickmode="array", tickvals=x_idx, ticktext=x_labels,
+            gridcolor="rgba(0,0,0,0)", tickfont=dict(size=10),
+        ),
+        yaxis=dict(title="Estudiantes que continuaron", gridcolor=BORDER,
+                   zerolinecolor=BORDER),
+    )
+    return fig
+
+
+def incert_desviacion_fig(periodo_dist: dict, sb11_year: int):
+    """Barras de desviación en semestres respecto al estándar (10 semestres = 5 años).
+    Negativo = llegaron antes; 0 = exactamente en el estándar; positivo = llegaron después."""
+    if not periodo_dist:
+        return empty_fig("Sin datos de trayectoria para esta cohorte")
+
+    sem_counts: dict = {}
+    for p, cnt in periodo_dist.items():
+        _, _, delta_sems = _parse_periodo(p, sb11_year)
+        if delta_sems is not None:
+            dev = delta_sems - STANDARD_SEMESTERS
+            sem_counts[dev] = sem_counts.get(dev, 0) + cnt
+
+    if not sem_counts:
+        return empty_fig("Sin datos de trayectoria para esta cohorte")
+
+    devs   = sorted(sem_counts.keys())
+    counts = [sem_counts[d] for d in devs]
+
+    def _color(d):
+        if d < 0:  return ACCENT5
+        if d == 0: return ACCENT2
+        frac = min(d / 8, 1.0)
+        return f"hsl({int(10 - 10*frac)}, 75%, {int(58 - 18*frac)}%)"
+
+    colors = [_color(d) for d in devs]
+
+    def _tick(d):
+        if d == 0: return f"0 sem<br>(estándar)"
+        s    = abs(d)
+        yrs  = int(s // 2)
+        srem = int(round(s % 2))
+        sign = "+" if d > 0 else "−"
+        parts = []
+        if yrs:  parts.append(f"{yrs}a")
+        if srem: parts.append("1sem")
+        return f"{sign}{int(s)} sem<br>({sign}{' '.join(parts) or '½a'})"
+
+    labels = [_tick(d) for d in devs]
+
+    fig = go.Figure(go.Bar(
+        x=devs, y=counts,
+        marker=dict(color=colors, line=dict(color="rgba(0,0,0,0)")),
+        customdata=labels,
+        hovertemplate="Desviación: %{customdata}<br>Estudiantes: %{y:,}<extra></extra>",
+    ))
+    fig.add_vline(x=0, line=dict(color=ACCENT2, dash="dot", width=1.5))
+    fig.update_layout(
+        **LAYOUT_BASE,
+        xaxis=dict(
+            title="Desviación respecto al estándar en semestres  (0 = 5 años exactos)",
+            tickmode="array", tickvals=devs, ticktext=labels,
+            gridcolor="rgba(0,0,0,0)", tickfont=dict(size=9),
+        ),
+        yaxis=dict(title="Estudiantes que continuaron", gridcolor=BORDER,
+                   zerolinecolor=BORDER),
+        shapes=[dict(
+            type="rect", xref="x", yref="paper",
+            x0=-0.5, x1=0.5, y0=0, y1=1,
+            fillcolor=ACCENT2, opacity=0.06,
+            line=dict(width=0), layer="below",
+        )],
+    )
+    return fig
+
+
+# ─────────────────────────────────────────────────────────────
 # POSTGRES HELPERS
 # ─────────────────────────────────────────────────────────────
 
@@ -231,15 +469,26 @@ def _table_columns(cur, table: str) -> set:
 def build_cache() -> tuple:
     print("=" * 65)
     print("  Construyendo caché de deserción genérica (2010–2018)…")
-    print("  Fuente: Postgres · saber11_XXXX × llaves")
+    print("  Fuente: Postgres · saber11_XXXX × llaves × saberpro_XXXX")
     print("=" * 65)
     t0 = time.time()
 
     conn = pg_connect()
+    conn.autocommit = True          # cada query es su propia transacción
     cur  = conn.cursor()
 
-    meta       = {}   # {year: {total, continuaron, desertores, tasa_desercion, tasa_transicion}}
+    meta       = {}   # {year: {total, continuaron, desertores, tasas, periodo_dist}}
     des_frames = []   # DataFrames de detalle de desertores por año
+
+    # Pre-verificar qué tablas SB Pro tienen estu_consecutivo + periodo
+    sbpro_avail = []
+    print("  Verificando tablas SB Pro para incertidumbre…", end=" ")
+    for sy in SBPRO_YEARS:
+        if _table_exists(cur, f"saberpro_{sy}"):
+            cols_sy = _table_columns(cur, f"saberpro_{sy}")
+            if "estu_consecutivo" in cols_sy and "periodo" in cols_sy:
+                sbpro_avail.append(sy)
+    print(f"{sbpro_avail}")
 
     for year in SB11_YEARS:
         table = f"saber11_{year}"
@@ -281,6 +530,7 @@ def build_cache() -> tuple:
             "desertores":      desertores,
             "tasa_desercion":  tasa_d,
             "tasa_transicion": tasa_t,
+            "periodo_dist":    {},
         }
         print(f"         total={total:,}  continuaron={continuaron:,}  "
               f"desertores={desertores:,}  tasa={tasa_d:.1f}%")
@@ -298,17 +548,47 @@ def build_cache() -> tuple:
                 WHERE l.estu_consecutivo_sb11 IS NULL
                 """
             )
-            rows = cur.fetchall()
-            if rows:
-                df_y = pd.DataFrame(rows, columns=detail_cols)
+            prows = cur.fetchall()
+            if prows:
+                df_y = pd.DataFrame(prows, columns=detail_cols)
                 df_y["anio_cohorte"] = year
                 des_frames.append(df_y)
                 print(f"         detalle desertores: {len(df_y):,} filas")
 
+        # ── 4. Distribución por periodo SB Pro (radio de incertidumbre) ──
+        #   Para cada tabla saberpro_{sy}, cuenta cuántos estudiantes de
+        #   esta cohorte (con llave) presentaron SB Pro en ese año/periodo.
+        print(f"         [incert] Consultando periodos SB Pro cruzados…", end=" ")
+        periodo_dist: dict = {}
+        for sy in sbpro_avail:
+            try:
+                cur.execute(
+                    f"""
+                    SELECT sp.periodo::text, COUNT(*)
+                    FROM {PG_SCHEMA}.{table} s
+                    INNER JOIN {PG_SCHEMA}.llaves l
+                        ON s.estu_consecutivo::text = l.estu_consecutivo_sb11::text
+                    INNER JOIN {PG_SCHEMA}.saberpro_{sy} sp
+                        ON l.estu_consecutivo_sbpro::text = sp.estu_consecutivo::text
+                    WHERE sp.periodo IS NOT NULL
+                    GROUP BY sp.periodo
+                    """
+                )
+                for prow in cur.fetchall():
+                    p_str = str(prow[0])
+                    cnt   = int(prow[1])
+                    periodo_dist[p_str] = periodo_dist.get(p_str, 0) + cnt
+            except Exception as exc:
+                print(f"\n         ⚠️  [{year}↔saberpro_{sy}]: {exc}", end=" ")
+
+        meta[year]["periodo_dist"] = periodo_dist
+        total_match = sum(periodo_dist.values())
+        print(f"{total_match:,} pares · {len(periodo_dist)} periodos")
+
     cur.close()
     conn.close()
 
-    # ── 4. Consolidar y persistir ───────────────────────────────
+    # ── 5. Consolidar y persistir ───────────────────────────────
     df_des = pd.concat(des_frames, ignore_index=True) if des_frames else pd.DataFrame()
 
     CACHE_DIR.mkdir(exist_ok=True)
@@ -334,6 +614,10 @@ def load_or_build(force=False) -> tuple:
         try:
             with open(CACHE_META, "rb") as f:
                 meta = pickle.load(f)
+            # Si la caché no tiene periodo_dist (versión anterior), forzar rebuild
+            if meta and not all("periodo_dist" in v for v in meta.values()):
+                print("\n  ⚠️  Caché sin datos de incertidumbre. Reprocesando…")
+                return build_cache()
             df_des = pd.read_parquet(CACHE_DES)
             print(f"OK ({time.time()-t0:.1f}s) · cohortes={sorted(meta.keys())} "
                   f"· desertores={len(df_des):,}")
@@ -595,6 +879,33 @@ layout = html.Div(style={
         g("des-fig-depto", "360px"),
     ]),
 
+    # ── Radio de incertidumbre ───────────────────────────────────
+    card([
+        section_title("Radio de incertidumbre — tiempo entre Saber 11 y Saber Pro"),
+        html.Div(
+            "Estándar: 5 años (10 semestres) entre la presentación de Saber 11 y la de Saber Pro. "
+            "Se mide cuánto tiempo antes o después del estándar llegaron los estudiantes "
+            "que sí continuaron (tienen llave coincidente).",
+            style={"color": TEXT_MUTED, "fontSize": "11px",
+                   "lineHeight": "1.7", "marginBottom": "20px"},
+        ),
+        html.Div(id="des-incert-kpi-row", style={"marginBottom": "20px"}),
+        row(
+            col([
+                html.Div("Año real de presentación Saber Pro (respecto al estándar)",
+                         style={"color": TEXT_MUTED, "fontSize": "11px",
+                                "marginBottom": "8px"}),
+                g("des-fig-incert-anos", "360px"),
+            ]),
+            col([
+                html.Div("Desviación en semestres respecto al estándar (0 = 5 años exactos)",
+                         style={"color": TEXT_MUTED, "fontSize": "11px",
+                                "marginBottom": "8px"}),
+                g("des-fig-incert-desv", "360px"),
+            ]),
+        ),
+    ], extra_style={"borderColor": ACCENT1 + "33"}),
+
     # ── Nota metodológica ────────────────────────────────────────
     card([
         section_title("Nota metodológica"),
@@ -629,6 +940,26 @@ layout = html.Div(style={
                 html.Span("Saber Pro  ", style={"color": TEXT_MUTED}),
                 html.Span("→  resultados 2015–2023 · cruzados vía tabla pública llaves.",
                           style={"color": TEXT_MAIN}),
+            ], style={"marginBottom": "8px"}),
+            html.Div([
+                html.Span("Estándar de tiempo  ", style={"color": TEXT_MUTED}),
+                html.Span("→  5 años (10 semestres) entre el año de SB11 y el año de SB Pro.",
+                          style={"color": TEXT_MAIN}),
+            ], style={"marginBottom": "8px"}),
+            html.Div([
+                html.Span("Antes del estándar  ", style={"color": TEXT_MUTED}),
+                html.Span("→  estudiantes que presentaron SB Pro en menos de 5 años desde su SB11.",
+                          style={"color": TEXT_MAIN}),
+            ], style={"marginBottom": "8px"}),
+            html.Div([
+                html.Span("Después del estándar  ", style={"color": TEXT_MUTED}),
+                html.Span("→  estudiantes que presentaron SB Pro en más de 5 años desde su SB11.",
+                          style={"color": TEXT_MAIN}),
+            ], style={"marginBottom": "8px"}),
+            html.Div([
+                html.Span("Desviación (semestres)  ", style={"color": TEXT_MUTED}),
+                html.Span("→  delta_sems = (año_SBPro − año_SB11) × 2 + (semestre_SBPro − 1) − 10.",
+                          style={"color": TEXT_MAIN}),
             ]),
         ], style={
             "fontFamily": "'IBM Plex Mono', monospace", "fontSize": "12px",
@@ -648,22 +979,31 @@ layout = html.Div(style={
 # ─────────────────────────────────────────────────────────────
 
 @callback(
-    Output("des-kpi-row",        "children"),
-    Output("des-fig-gauge",      "figure"),
-    Output("des-fig-donut",      "figure"),
-    Output("des-fig-estrato",    "figure"),
-    Output("des-fig-naturaleza", "figure"),
-    Output("des-fig-area",       "figure"),
-    Output("des-fig-depto",      "figure"),
-    Input("des-f-cohorte",       "value"),
+    Output("des-kpi-row",          "children"),
+    Output("des-fig-gauge",        "figure"),
+    Output("des-fig-donut",        "figure"),
+    Output("des-fig-estrato",      "figure"),
+    Output("des-fig-naturaleza",   "figure"),
+    Output("des-fig-area",         "figure"),
+    Output("des-fig-depto",        "figure"),
+    Output("des-incert-kpi-row",   "children"),
+    Output("des-fig-incert-anos",  "figure"),
+    Output("des-fig-incert-desv",  "figure"),
+    Input("des-f-cohorte",         "value"),
 )
 def update_cohorte(year):
+    _empty_incert = (
+        html.Div("Sin datos de trayectoria.",
+                 style={"color": TEXT_MUTED, "fontFamily": "'IBM Plex Mono', monospace"}),
+        empty_fig("Sin datos de trayectoria"),
+        empty_fig("Sin datos de trayectoria"),
+    )
     _no_data = (
         html.Div("Sin cohorte seleccionada.",
-                 style={"color": TEXT_MUTED,
-                        "fontFamily": "'IBM Plex Mono', monospace"}),
+                 style={"color": TEXT_MUTED, "fontFamily": "'IBM Plex Mono', monospace"}),
         empty_fig(), empty_fig(),
         empty_fig(), empty_fig(), empty_fig(), empty_fig(),
+        *_empty_incert,
     )
 
     if year is None or year not in _META:
@@ -689,7 +1029,9 @@ def update_cohorte(year):
     fig_donut = donut_fig(continuaron, desertores)
 
     if _DF_DES.empty or "anio_cohorte" not in _DF_DES.columns:
-        return kpis, fig_gauge, fig_donut, empty_fig(), empty_fig(), empty_fig(), empty_fig()
+        return (kpis, fig_gauge, fig_donut,
+                empty_fig(), empty_fig(), empty_fig(), empty_fig(),
+                *_empty_incert)
 
     d = _DF_DES[_DF_DES["anio_cohorte"] == year]
 
@@ -725,4 +1067,48 @@ def update_cohorte(year):
     else:
         fig_depto = empty_fig("Columna 'estu_depto_presentacion' no disponible en esta cohorte")
 
-    return kpis, fig_gauge, fig_donut, fig_estrato, fig_naturaleza, fig_area, fig_depto
+    # ── Radio de incertidumbre ──────────────────────────────────
+    periodo_dist = m.get("periodo_dist", {})
+    stats        = _incert_stats(periodo_dist, year)
+    expected_yr  = year + STANDARD_YEARS
+
+    if stats:
+        incert_kpis = row(
+            kpi_box(
+                "A tiempo (5 años exactos)",
+                f"{stats['ontime_count']:,}",
+                ACCENT2,
+                f"{stats['ontime_pct']:.1f}% · SB Pro en {expected_yr}",
+            ),
+            kpi_box(
+                "Antes del estándar",
+                f"{stats['early_count']:,}",
+                ACCENT5,
+                f"{stats['early_pct']:.1f}% · prom. {_fmt_sems(stats['early_avg_dev'], short=True)}",
+            ),
+            kpi_box(
+                "Después del estándar",
+                f"{stats['late_count']:,}",
+                ACCENT3,
+                f"{stats['late_pct']:.1f}% · prom. {_fmt_sems(stats['late_avg_dev'], short=True)}",
+            ),
+            kpi_box(
+                "Desviación promedio global",
+                _fmt_sems(stats["avg_dev"]),
+                ACCENT4,
+                f"{stats['avg_dev']:+.1f} sem respecto al estándar",
+            ),
+        )
+    else:
+        incert_kpis = html.Div(
+            "Sin datos de trayectoria (periodo_dist vacío o tabla llaves no disponible).",
+            style={"color": TEXT_MUTED, "fontFamily": "'IBM Plex Mono', monospace",
+                   "fontSize": "12px"},
+        )
+
+    fig_incert_anos = incert_anos_fig(periodo_dist, year)
+    fig_incert_desv = incert_desviacion_fig(periodo_dist, year)
+
+    return (kpis, fig_gauge, fig_donut,
+            fig_estrato, fig_naturaleza, fig_area, fig_depto,
+            incert_kpis, fig_incert_anos, fig_incert_desv)
