@@ -52,7 +52,7 @@ warnings.filterwarnings("ignore")
 # REGISTRO DE PÁGINA
 # ─────────────────────────────────────────────────────────────
 dash.register_page(__name__, path="/kmeans-prediccion",
-                   name="K-Means · Predicción Saber Pro")
+                   name="K-Means · Estimación Saber Pro")
 
 # ─────────────────────────────────────────────────────────────
 # RUTAS A LOS ARTEFACTOS DE K-MEANS
@@ -295,7 +295,7 @@ if _cache["error"]:
         "color": TEXT_MAIN, "padding": "24px 32px",
     }, children=[
         card([
-            section_title("K-Means · Predicción Saber Pro"),
+            section_title("K-Means · Estimación Saber Pro"),
             _alert(f"⚠  {_cache['error']}", color=ACCENT3),
             sublabel("Esta página lee ArtefactosKMeans/predicciones_kmeans.parquet "
                      "y ArtefactosKMeans/metricas_kmeans.json."),
@@ -313,10 +313,10 @@ else:
 
         # ── Header ──
         html.Div([
-            html.Div("ICFES · K-MEANS · PREDICCIÓN SABER PRO",
+            html.Div("ICFES · K-MEANS · ESTIMACIÓN SABER PRO",
                      style={"color": ACCENT1, "fontSize": "11px",
                             "letterSpacing": "4px"}),
-            html.H1("Predicción alternativa por K-Means", style={
+            html.H1("Estimación alternativa por K-Means", style={
                 "margin": "4px 0 0 0", "fontSize": "28px",
                 "fontWeight": "700", "color": TEXT_MAIN,
             }),
@@ -393,9 +393,9 @@ else:
         # ── Real vs Predicho + Distribución ──
         row(
             col(card([
-                section_title("Real vs Predicho · Elipse bivariada"),
+                section_title("Real vs Estimado · Elipse bivariada"),
                 sublabel(
-                    "Cada punto es un estudiante · diagonal = predicción perfecta · "
+                    "Cada punto es un estudiante · diagonal = estimación perfecta · "
                     "elipse = región que contiene el % seleccionado bajo normalidad bivariada · "
                     "◆ fuera de la elipse · ○ outlier 3σ residual · ✕ ambos."
                 ),
@@ -414,7 +414,7 @@ else:
                 dcc.Graph(id="km-scatter", config={"displayModeBar": False}),
             ]), min_width="380px"),
             col(card([
-                section_title("Distribución · real vs predicho"),
+                section_title("Distribución · real vs estimado"),
                 sublabel("Comparación de las distribuciones de puntaje del módulo."),
                 dcc.Graph(id="km-dist", config={"displayModeBar": False}),
             ]), min_width="380px"),
@@ -422,7 +422,7 @@ else:
 
         # ── Residuales ──
         card([
-            section_title("Distribución de residuales (real − predicho)"),
+            section_title("Distribución de residuales (real − estimado)"),
             sublabel("Centrada en 0 y estrecha = buen ajuste · bandas: "
                      "verde ±1σ, naranja ±2σ, rojo ±3σ · fuera de ±3σ = outlier."),
             dcc.Graph(id="km-resid", config={"displayModeBar": False}),
@@ -432,7 +432,7 @@ else:
         row(
             col(card([
                 section_title("Selección de K · MAE de validación"),
-                sublabel("Barrido de K (criterio: MAE de validación con el predictor "
+                sublabel("Barrido de K (criterio: MAE de validación con el estimador "
                          "'media') · ◆ = K elegido. Test se evalúa una sola vez."),
                 dcc.Graph(id="km-barrido", config={"displayModeBar": False}),
             ]), min_width="380px"),
@@ -490,14 +490,14 @@ def _construir_scatter(real, pred, modulo, nivel_str):
             x=real[normal_m], y=pred[normal_m], mode="markers",
             marker=dict(size=4, color=ACCENT1, opacity=0.30),
             name="Estudiantes",
-            hovertemplate="Real: %{x:.3f}<br>Predicho: %{y:.3f}<extra></extra>",
+            hovertemplate="Real: %{x:.3f}<br>Estimado: %{y:.3f}<extra></extra>",
         ))
     if only_mah.any():
         fig.add_trace(go.Scattergl(
             x=real[only_mah], y=pred[only_mah], mode="markers",
             marker=dict(size=5, color=ACCENT4, opacity=0.55, symbol="diamond"),
             name=f"Fuera de la elipse ({nivel_str})",
-            hovertemplate="Real: %{x:.3f}<br>Predicho: %{y:.3f}<br>Outlier bivariado<extra></extra>",
+            hovertemplate="Real: %{x:.3f}<br>Estimado: %{y:.3f}<br>Outlier bivariado<extra></extra>",
         ))
     if only_sig.any():
         fig.add_trace(go.Scattergl(
@@ -505,7 +505,7 @@ def _construir_scatter(real, pred, modulo, nivel_str):
             marker=dict(size=6, color=ACCENT5, opacity=0.75,
                         symbol="circle-open", line=dict(width=1.5, color=ACCENT5)),
             name="Outlier 3σ (residual)",
-            hovertemplate="Real: %{x:.3f}<br>Predicho: %{y:.3f}<br>Outlier 3σ<extra></extra>",
+            hovertemplate="Real: %{x:.3f}<br>Estimado: %{y:.3f}<br>Outlier 3σ<extra></extra>",
         ))
     if both_out.any():
         fig.add_trace(go.Scattergl(
@@ -513,7 +513,7 @@ def _construir_scatter(real, pred, modulo, nivel_str):
             marker=dict(size=7, color=ACCENT3, opacity=0.85,
                         symbol="x", line=dict(width=1.5, color=ACCENT3)),
             name="Outlier 3σ + bivariado",
-            hovertemplate="Real: %{x:.3f}<br>Predicho: %{y:.3f}<br>3σ + bivariado<extra></extra>",
+            hovertemplate="Real: %{x:.3f}<br>Estimado: %{y:.3f}<br>3σ + bivariado<extra></extra>",
         ))
 
     ex, ey, mu_biv, _ = _calcular_elipse(real, pred, nivel)
@@ -532,13 +532,13 @@ def _construir_scatter(real, pred, modulo, nivel_str):
     fig.add_trace(go.Scatter(
         x=[0, 1], y=[0, 1], mode="lines",
         line=dict(color=ACCENT3, width=1.5, dash="dash"),
-        name="Predicción perfecta", hoverinfo="skip",
+        name="Estimación perfecta", hoverinfo="skip",
     ))
     fig.update_layout(
         **LAYOUT_BASE, height=380,
         xaxis=dict(title=f"{modulo_lbl} · Real (normalizado)", range=[0, 1],
                    gridcolor=BORDER, zerolinecolor=BORDER),
-        yaxis=dict(title="Predicho (normalizado)", range=[0, 1],
+        yaxis=dict(title="Estimado (normalizado)", range=[0, 1],
                    gridcolor=BORDER, zerolinecolor=BORDER),
         legend=dict(orientation="h", y=1.10, x=0, font=dict(size=10)),
     )
@@ -585,7 +585,7 @@ def _construir_residuales(err):
 
     resid.update_layout(
         **LAYOUT_BASE, height=320,
-        xaxis=dict(title="Residual (real − predicho)", gridcolor=BORDER,
+        xaxis=dict(title="Residual (real − estimado)", gridcolor=BORDER,
                    zerolinecolor=BORDER),
         yaxis=dict(title="Frecuencia", gridcolor=BORDER),
         showlegend=False, shapes=shapes, annotations=annotations,
@@ -786,7 +786,7 @@ def actualizar(forma, metodo, modulo, split, institucion, nivel_str):
     dist = go.Figure()
     dist.add_trace(go.Histogram(x=real, nbinsx=40, name="Real",
                                 marker_color=ACCENT1, opacity=0.6))
-    dist.add_trace(go.Histogram(x=pred, nbinsx=40, name="Predicho",
+    dist.add_trace(go.Histogram(x=pred, nbinsx=40, name="Estimado",
                                 marker_color=ACCENT5, opacity=0.6))
     dist.update_layout(
         **LAYOUT_BASE, height=380, barmode="overlay",
@@ -852,8 +852,8 @@ def actualizar(forma, metodo, modulo, split, institucion, nivel_str):
         "kpi_r2":     RE.kpi("R²", f"{r2:.4f}"),
         "kpi_sesgo":  RE.kpi("Sesgo medio", f"{sesgo:+.4f}"),
         "kpi_out3s":  RE.kpi("Outliers 3σ", f"{n_out:,} ({pct_out:.1f}%)"),
-        "fig_scatter": RE.figure("Real vs Predicho · Elipse bivariada", scatter),
-        "fig_dist":    RE.figure("Distribución real vs predicho", dist),
+        "fig_scatter": RE.figure("Real vs Estimado · Elipse bivariada", scatter),
+        "fig_dist":    RE.figure("Distribución real vs estimado", dist),
         "fig_resid":   RE.figure("Distribución de residuales", resid),
     }
     # Figuras derivadas del JSON (baratas): barrido, métodos, formas.

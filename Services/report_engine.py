@@ -227,7 +227,7 @@ REPORT_SECTIONS = [
     },
     {
         "id": "rna",
-        "title": "RNA · Predicción Saber Pro",
+        "title": "RNA · Estimación Saber Pro",
         "store": "report-store-rna",
         "items": [
             {"id": "kpi_n",       "label": "Estudiantes",                "kind": "kpi"},
@@ -237,8 +237,8 @@ REPORT_SECTIONS = [
             {"id": "kpi_r2",      "label": "R²",                         "kind": "kpi"},
             {"id": "kpi_sesgo",   "label": "Sesgo medio",                "kind": "kpi"},
             {"id": "kpi_out3s",   "label": "Outliers 3σ",                "kind": "kpi"},
-            {"id": "fig_scatter", "label": "Real vs Predicho · Elipse bivariada", "kind": "figure"},
-            {"id": "fig_dist",    "label": "Distribución real vs predicho", "kind": "figure"},
+            {"id": "fig_scatter", "label": "Real vs Estimado · Elipse bivariada", "kind": "figure"},
+            {"id": "fig_dist",    "label": "Distribución real vs estimado", "kind": "figure"},
             {"id": "fig_resid",   "label": "Distribución de residuales",  "kind": "figure"},
             {"id": "fig_formas",     "label": "Comparación F1 vs F2 · MAE por módulo", "kind": "figure"},
             {"id": "fig_formas_mse", "label": "Comparación F1 vs F2 · MSE por módulo", "kind": "figure"},
@@ -247,7 +247,7 @@ REPORT_SECTIONS = [
     },
     {
         "id": "kmeans",
-        "title": "K-Means · Predicción Saber Pro",
+        "title": "K-Means · Estimación Saber Pro",
         "store": "report-store-kmeans",
         "items": [
             {"id": "kpi_n",       "label": "Estudiantes",                "kind": "kpi"},
@@ -258,8 +258,8 @@ REPORT_SECTIONS = [
             {"id": "kpi_r2",      "label": "R²",                         "kind": "kpi"},
             {"id": "kpi_sesgo",   "label": "Sesgo medio",                "kind": "kpi"},
             {"id": "kpi_out3s",   "label": "Outliers 3σ",                "kind": "kpi"},
-            {"id": "fig_scatter", "label": "Real vs Predicho · Elipse bivariada", "kind": "figure"},
-            {"id": "fig_dist",    "label": "Distribución real vs predicho", "kind": "figure"},
+            {"id": "fig_scatter", "label": "Real vs Estimado · Elipse bivariada", "kind": "figure"},
+            {"id": "fig_dist",    "label": "Distribución real vs estimado", "kind": "figure"},
             {"id": "fig_resid",   "label": "Distribución de residuales",  "kind": "figure"},
             {"id": "fig_barrido", "label": "Selección de K · MAE de validación", "kind": "figure"},
             {"id": "fig_metodos", "label": "Comparación media vs reg. lineal · MAE por módulo", "kind": "figure"},
@@ -1222,7 +1222,7 @@ def _figure_description(label, fig_dict, s, caption=None):
 
     # ── Dispersión (nube de puntos: real vs. predicho, correlaciones) ──
     elif marker_traces and disp_n >= 30:
-        es_pred = "real" in xnoun.lower() and "predich" in ynoun.lower()
+        es_pred = "real" in xnoun.lower() and "estimad" in ynoun.lower()
         if es_pred:
             general = ("Este gráfico compara, caso por caso, el valor real con el valor que estima "
                        "el modelo. Cada punto es un estudiante; cuanto más cerca esté de la línea "
@@ -1489,13 +1489,13 @@ _SECTION_METHOD = {
                  "entre Saber 11 y Saber Pro; se reportan tasas por cohorte y la tendencia "
                  "mediante regresión lineal de la tasa de no coincidencia.",
     "rna": "Se evalúa el desempeño de una Red Neuronal Artificial entrenada externamente, "
-           "contrastando valores reales y predichos sobre el conjunto seleccionado mediante "
+           "contrastando valores reales y estimados sobre el conjunto seleccionado mediante "
            "MAE, RMSE, R² y sesgo medio.",
-    "kmeans": "Se evalúa una predicción alternativa por K-Means (cluster-then-predict): los "
+    "kmeans": "Se evalúa una estimación alternativa por K-Means (cluster-then-predict): los "
               "estudiantes se agrupan por su vector Saber 11 y cada clúster responde con la media "
               "de sus targets (método 'media') o una regresión lineal local (método 'reglineal'). "
               "El número de clústeres K se elige por validación. Se contrastan valores reales y "
-              "predichos mediante MAE, RMSE, R² y sesgo medio, de forma comparable con la RNA.",
+              "estimados mediante MAE, RMSE, R² y sesgo medio, de forma comparable con la RNA.",
     "probestrato": "Se estima la probabilidad condicional del estrato socioeconómico dado el "
                    "nivel educativo de los padres, como frecuencia relativa observada en el año "
                    "seleccionado.",
@@ -1569,7 +1569,7 @@ def _auto_conclusions(payloads, selected_keys):
         if kr and kr.get("value") not in (None, "—"):
             extra = f" con un MAE de {km['value']}" if km and km.get("value") not in (None, "—") else ""
             kpart = f" (K={kk['value']} clústeres)" if kk and kk.get("value") not in (None, "—") else ""
-            bullets.append(f"La predicción alternativa por K-Means alcanzó un R² de "
+            bullets.append(f"La estimación alternativa por K-Means alcanzó un R² de "
                            f"{kr['value']}{extra}{kpart} sobre el conjunto seleccionado.")
 
     if "probestrato" in sel:
@@ -1670,7 +1670,7 @@ def build_report_pdf(config, payloads, selected_keys):
     n_comp = len(available)
     src_titles = _safe(", ".join(_section_title(x, payloads) for x in secs_used)) or "—"
     story.append(Paragraph(
-        f"Este informe presenta un análisis comparativo y predictivo de la evolución de "
+        f"Este informe presenta un análisis comparativo y estimativo de la evolución de "
         f"competencias universitarias a partir de las pruebas Saber 11 y Saber Pro. El "
         f"documento se genera de forma automática desde el Sistema de Analítica Académica de "
         f"la Universidad de San Buenaventura, recopilando <b>{n_comp}</b> componente(s) "
@@ -1760,7 +1760,7 @@ def build_report_pdf(config, payloads, selected_keys):
     story.append(_rule())
     story.append(Paragraph(
         "Los <b>estimadores</b> son valores que infieren o aproximan una cantidad no observada "
-        "directamente: estimaciones de error de un modelo predictivo (MAE, RMSE, R², sesgo), "
+        "directamente: estimaciones de error de un modelo estimativo (MAE, RMSE, R², sesgo), "
         "pendientes de tendencia obtenidas por regresión, o probabilidades estimadas. A "
         "diferencia de los indicadores, conllevan un componente inferencial y un margen de "
         "incertidumbre.", s["body"]))
@@ -1793,7 +1793,7 @@ def build_report_pdf(config, payloads, selected_keys):
         "En conjunto, los gráficos evidencian las distribuciones, comparaciones y tendencias más "
         "relevantes de la población analizada, mientras que los indicadores y estimadores "
         "cuantifican su magnitud y, cuando aplica, la evolución entre cohortes y el desempeño de "
-        "los modelos predictivos. La lectura combinada de unos y otros permite identificar "
+        "los modelos estimativos. La lectura combinada de unos y otros permite identificar "
         "fortalezas, brechas y áreas de atención prioritaria: las categorías y series con mayor "
         "peso señalan dónde se concentra la población o el mejor desempeño, mientras que las "
         "variaciones negativas y los valores extremos advierten los puntos que requieren "
