@@ -204,14 +204,20 @@ def _cargar_global_pred(pred: pd.DataFrame, meta: dict) -> pd.DataFrame:
                         key_col = candidate
                         break
 
-            if key_col and key_col in pred.columns:
+            if key_col and key_col in pred.columns and "forma" in cols_pg and "forma" in pred.columns:
                 with conn.cursor() as cur:
                     cur.execute(
-                        f'SELECT "{key_col}", global_pred FROM predicciones_saberpro_v3_5'
+                        f'SELECT "{key_col}", forma, global_pred FROM predicciones_saberpro_v3_5'
                     )
                     rows = cur.fetchall()
-                df_pg = pd.DataFrame(rows, columns=[key_col, "global_pred"])
-                pred = pred.merge(df_pg, on=key_col, how="left")
+                df_pg = pd.DataFrame(rows, columns=[key_col, "forma", "global_pred"])
+                # La clave por sí sola no es única (cada estudiante tiene una fila
+                # por forma 1/2), y además existen filas duplicadas exactas en la
+                # tabla: si el lado derecho del merge no es único, un left-join
+                # produce fan-out (filas de más) y contamina R²/MAE de todos los
+                # módulos, no solo del global. Se deduplica antes de unir.
+                df_pg = df_pg.drop_duplicates(subset=[key_col, "forma"])
+                pred = pred.merge(df_pg, on=[key_col, "forma"], how="left")
             else:
                 # Fallback posicional si no hay clave común
                 with conn.cursor() as cur:
