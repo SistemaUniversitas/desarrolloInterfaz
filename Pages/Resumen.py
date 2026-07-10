@@ -391,13 +391,13 @@ def _mod_rna():
         if "split" in df.columns and (df["split"] == "test").any():
             df = df[df["split"] == "test"]
         for label, base, _ in mods:
-            figs.append((f"Real vs Predicho · {label}",
+            figs.append((f"Real vs Estimado · {label}",
                          _density(df[f"{base}_real"], df[f"{base}_pred"],
-                                  f"Real vs Predicho · {label}", "Real (norm)", "Predicho (norm)"),
-                         "Calibración del modelo (línea = predicción perfecta)."))
+                                  f"Real vs Estimado · {label}", "Real (norm)", "Estimado (norm)"),
+                         "Calibración del modelo (línea = estimación perfecta)."))
     except Exception:
         pass
-    return {"id": "rna", "title": "RNA · Predicción Saber Pro", "figs": figs}
+    return {"id": "rna", "title": "RNA · Estimación Saber Pro", "figs": figs}
 
 
 # ─────────────────────────────────────────────────────────────

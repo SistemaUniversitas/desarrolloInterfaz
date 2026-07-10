@@ -140,11 +140,11 @@ MODULES = [
     ("📉", "No profesionalización",
      "Coincidencia Saber 11 → Saber Pro por cohorte, tendencia y radio de incertidumbre.",
      "/no-profesionalizacion"),
-    ("🤖", "RNA · Predicción",
-     "Resultados del modelo de red neuronal: real vs predicho, residuales y métricas.",
+    ("🤖", "RNA · Estimación",
+     "Resultados del modelo de red neuronal: real vs estimado, residuales y métricas.",
      "/rna-prediccion"),
-    ("🔮", "K-Means · Predicción",
-     "Predicción alternativa por clústeres: real vs predicho, selección de K y métricas.",
+    ("🔮", "K-Means · Estimación",
+     "Estimación alternativa por clústeres: real vs estimado, selección de K y métricas.",
      "/kmeans-prediccion"),
     ("🎯", "Probabilidad · Estrato",
      "Probabilidad del estrato socioeconómico según la educación de los padres.",
@@ -160,9 +160,9 @@ METHOD = [
      "PostgreSQL y procesados con PySpark sobre grandes volúmenes."),
     ("⚙️", "Metodología",
      "Puntajes normalizados (0–1), cruce por llaves Saber 11 ↔ Saber Pro, agregaciones "
-     "precalculadas en caché y un modelo de red neuronal para predicción."),
+     "precalculadas en caché y un modelo de red neuronal para estimación."),
     ("🎯", "Alcance",
-     "Análisis comparativo, socioeconómico, de no profesionalización y predictivo, con "
+     "Análisis comparativo, socioeconómico, de no profesionalización y estimativo, con "
      "generación de reportes institucionales en PDF."),
 ]
 
@@ -227,13 +227,13 @@ layout = html.Div(className="ld-root", children=[
             html.Div(html.Img(src=LOGO_BANNER), className="ld-logo-chip"),
             html.Span("Sistema de Analítica Académica", className="ld-kicker"),
             html.H1(className="ld-hero-title", children=[
-                "Análisis Comparativo y Predictivo de ",
+                "Análisis Comparativo y Estimativo de ",
                 html.Span("Competencias Universitarias", className="hl"),
             ]),
             html.P("Plataforma institucional de la Universidad de San Buenaventura · "
                    "Seccional Medellín para analizar la evolución de competencias a partir "
                    "de las pruebas Saber 11 y Saber Pro: comparaciones interuniversitarias, "
-                   "perfil socioeconómico, no profesionalización, predicción con redes "
+                   "perfil socioeconómico, no profesionalización, estimación con redes "
                    "neuronales y generación de reportes institucionales.",
                    className="ld-hero-desc"),
             html.Div(className="ld-cta-row", children=[
